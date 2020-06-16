@@ -12,10 +12,11 @@ package mapbox
 import (
 	"github.com/ryankurte/go-mapbox/lib/base"
 	"github.com/ryankurte/go-mapbox/lib/directions"
-	"github.com/ryankurte/go-mapbox/lib/directions_matrix"
+	directionsmatrix "github.com/ryankurte/go-mapbox/lib/directions_matrix"
 	"github.com/ryankurte/go-mapbox/lib/geocode"
-	"github.com/ryankurte/go-mapbox/lib/map_matching"
+	mapmatching "github.com/ryankurte/go-mapbox/lib/map_matching"
 	"github.com/ryankurte/go-mapbox/lib/maps"
+	"github.com/ryankurte/go-mapbox/lib/tilesets"
 )
 
 // Mapbox API Wrapper structure
@@ -31,6 +32,7 @@ type Mapbox struct {
 	DirectionsMatrix *directionsmatrix.DirectionsMatrix
 	// MapMatching snaps inaccurate path tracked to a map to produce a clean path
 	MapMatching *mapmatching.MapMatching
+	Tilesets    *tilesets.Tileset
 }
 
 // NewMapbox Create a new mapbox API instance
@@ -50,6 +52,7 @@ func NewMapbox(token string) (*Mapbox, error) {
 	m.Directions = directions.NewDirections(m.base)
 	m.DirectionsMatrix = directionsmatrix.NewDirectionsMatrix(m.base)
 	m.MapMatching = mapmatching.NewMapMaptching(m.base)
+	m.Tilesets = tilesets.NewTileset(m.base)
 
 	return m, nil
 }

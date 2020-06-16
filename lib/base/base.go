@@ -10,13 +10,18 @@
 package base
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
 )
 
 const (
@@ -50,8 +55,88 @@ func (b *Base) SetDebug(debug bool) {
 	b.debug = true
 }
 
-type MapboxApiMessage struct {
+//MapboxAPIMessage simple holder for responses from MapBox
+type MapboxAPIMessage struct {
 	Message string
+}
+
+//SimpleGET for the status check
+func (b *Base) SimpleGET(url string) ([]byte, error) {
+	url = fmt.Sprintf("%s/%s?access_token=%s", BaseURL, url, b.token)
+	response, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	body, _ := ioutil.ReadAll(response.Body)
+	return body, nil
+
+}
+
+//PostRequest sends a simple json/application post request
+func (b *Base) PostRequest(postURL string, data []byte) ([]byte, error) {
+	postURL = fmt.Sprintf("%s/%s?access_token=%s", BaseURL, postURL, b.token)
+
+	request, err := http.NewRequest(http.MethodPost, postURL, bytes.NewBuffer(data))
+
+	if data != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+
+	client := &http.Client{}
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	body, _ := ioutil.ReadAll(response.Body)
+	return body, nil
+
+}
+
+//PostUploadFileRequest sends multipart/form-data POST request to the mapbox api
+func (b *Base) PostUploadFileRequest(postURL string, file string, filetype string) ([]byte, error) {
+
+	geoJSON, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer geoJSON.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(filetype, filepath.Base(geoJSON.Name()))
+	if err != nil {
+		return nil, err
+	}
+	io.Copy(part, geoJSON)
+	writer.Close()
+
+	postURL = fmt.Sprintf("%s/%s/?access_token=%s", BaseURL, postURL, b.token)
+	request, err := http.NewRequest(http.MethodPost, postURL, body)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Add("Content-Type", writer.FormDataContentType())
+	client := &http.Client{}
+
+	response, err := client.Do(request)
+	resBody, err := ioutil.ReadAll(response.Body)
+	if response.StatusCode != http.StatusOK {
+		apiMessage := MapboxAPIMessage{}
+		messageErr := json.Unmarshal(resBody, &apiMessage)
+		if messageErr == nil {
+			return nil, fmt.Errorf("api error: %s", apiMessage.Message)
+		}
+		return nil, fmt.Errorf("Bad Request (400) - no message")
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	fmt.Println(string(resBody))
+
+	return resBody, nil
 }
 
 // QueryRequest make a get with the provided query string and return the response if successful
@@ -116,7 +201,7 @@ func (b *Base) QueryBase(query string, v *url.Values, inst interface{}) error {
 
 	// Handle bad requests with messages
 	if resp.StatusCode == http.StatusBadRequest {
-		apiMessage := MapboxApiMessage{}
+		apiMessage := MapboxAPIMessage{}
 		messageErr := json.Unmarshal(body, &apiMessage)
 		if messageErr == nil {
 			return fmt.Errorf("api error: %s", apiMessage.Message)
