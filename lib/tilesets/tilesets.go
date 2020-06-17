@@ -130,7 +130,8 @@ func (t *Tileset) CheckJobStatus() error {
 			return nil
 		}
 		fmt.Println(statusResponse.Status)
-		time.Sleep(5)
+		time.Sleep(5 * time.Second)
+
 	}
 
 }
